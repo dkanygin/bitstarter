@@ -28,6 +28,26 @@ var rest = require('restler');
 var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
 
+var getHtmlFromUrl = function(checksfile) {
+    var response2console = function(result, response) {
+        if (result instanceof Error) {
+            console.error('Error: ' + util.format(response.message));
+        } else {
+            $ = cheerioUrlData(result);
+            var checks = loadChecks(checksfile).sort();
+            var out = {};
+            for (var ii in checks) {
+		var present = $(checks[ii]).length > 0;
+		out[checks[ii]] = present;
+	    }
+            var checkJson = out;
+            var outJson = JSON.stringify(checkJson, null, 4);
+            console.log(outJson);
+	}
+    };
+    return response2console;
+};
+
 var assertFileExists = function(infile) {
   var instr = infile.toString();
   if(!fs.existsSync(instr)) {
@@ -40,6 +60,10 @@ var assertFileExists = function(infile) {
 var cheerioHtmlFile = function(htmlfile) {
     return cheerio.load(fs.readFileSync(htmlfile));
 };
+
+var cheerioUrlData = function(urlData) {
+    return cheerio.load(urlData);
+}
 
 var loadChecks = function(checksfile) {
     return JSON.parse(fs.readFileSync(checksfile));
@@ -56,11 +80,31 @@ var checkHtmlFile = function(htmlfile, checksfile) {
     return out;
 };
 
+
 var clone = function(fn) {
     // Workaround for commander.js issue.
     // http://stackoverflow.com/a/6772648
     return fn.bind({});
 };
+
+var checkURL = function(result, checkFile) {
+    if (result instanceof Error) {
+	sys.puts('Error: ' + result.message);
+	this.retry(5000); // try again after 5 sec
+    } else {
+	$ = cheerioUrlData(result);                                                                 
+	var checks = loadChecks(checksfile).sort();                                              
+	var out = {};
+	for (var ii in checks) {
+            var present = $(checks[ii]).length > 0;
+            out[checks[ii]] = present;
+    }                                                                                      
+	var checkJson = out;
+	var outJson = JSON.stringify(checkJson, null, 4);
+	console.log(outJson);
+//	sys.puts(result);
+    }    
+}
 
 if(require.main == module) {
     program
@@ -71,6 +115,8 @@ if(require.main == module) {
     if (program.url) {
         console.log("url passed: %s", program.url);
 	//restler code goes here
+	var responce2console = getHtmlFromUrl(program.checks);
+	rest.get(program.url).on('complete', responce2console);
     } else {
         var checkJson = checkHtmlFile(program.file, program.checks);
 	var outJson = JSON.stringify(checkJson, null, 4);
